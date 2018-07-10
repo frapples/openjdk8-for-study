@@ -80,10 +80,22 @@ import java.util.function.Consumer;
  * @param <E> the type of elements held in this collection
  */
 
+// 关于modCount字段的作用：该字段定义在AbstractList中。
+// 假设迭代器在迭代过程中，突然表被修改了，那么可能造成由于迭代器内部记录的状态与表不一致导致不可预测的行为。
+// 如下代码就是这样。除此之外，多线程环境下这种情况更常见。
+// List<Integer> list = new LinkedList<>();
+//     Iterator<Integer> it = list.listIterator();
+//     list.add(1);
+//     it.next();
+// 为了避免这种情况，可以注意到，LinkedList的每一个会修改表的操作都会将modCount加1.
+// 迭代器内只需要将modCount与迭代器构造时保存的值对比即可知道是否表被修改过.
+
+
 public class LinkedList<E>
     extends AbstractSequentialList<E>
     implements List<E>, Deque<E>, Cloneable, java.io.Serializable
 {
+    // 存储链表大小。因此LinkedList获取大小不需要遍历整个表
     transient int size = 0;
 
     /**
@@ -91,6 +103,9 @@ public class LinkedList<E>
      * Invariant: (first == null && last == null) ||
      *            (first.prev == null && first.item != null)
      */
+    // Node类为具体的链表节点。从Node类的定义去看，可以发现是一个双链表
+    // LinkedList记录了头指针和尾指针，所以它即能头插也能尾插
+    // 空链表这两个字段都为null
     transient Node<E> first;
 
     /**
@@ -104,6 +119,7 @@ public class LinkedList<E>
      * Constructs an empty list.
      */
     public LinkedList() {
+        // 啥也没有。。。空表的那两个字段都为null
     }
 
     /**
@@ -123,6 +139,7 @@ public class LinkedList<E>
      * Links e as first element.
      */
     private void linkFirst(E e) {
+        // 头插入一个元素，指针操作一下，然后注意要维护尾指针和size字段
         final Node<E> f = first;
         final Node<E> newNode = new Node<>(null, e, f);
         first = newNode;
@@ -138,6 +155,7 @@ public class LinkedList<E>
      * Links e as last element.
      */
     void linkLast(E e) {
+        // 尾插入一个元素，指针也这么操作一下~
         final Node<E> l = last;
         final Node<E> newNode = new Node<>(l, e, null);
         last = newNode;
@@ -153,6 +171,7 @@ public class LinkedList<E>
      * Inserts element e before non-null Node succ.
      */
     void linkBefore(E e, Node<E> succ) {
+        // 在succ节点之前插入一个元素，指针这么变一下就ok了，O(1)操作
         // assert succ != null;
         final Node<E> pred = succ.prev;
         final Node<E> newNode = new Node<>(pred, e, succ);
@@ -207,6 +226,7 @@ public class LinkedList<E>
      * Unlinks non-null node x.
      */
     E unlink(Node<E> x) {
+        // 把x移除，也是移动下指针就ok了，注意维护size字段。
         // assert x != null;
         final E element = x.item;
         final Node<E> next = x.next;
@@ -334,6 +354,7 @@ public class LinkedList<E>
      * @param e element to be appended to this list
      * @return {@code true} (as specified by {@link Collection#add})
      */
+    // 添加一个元素是O(1)操作
     public boolean add(E e) {
         linkLast(e);
         return true;
@@ -352,6 +373,7 @@ public class LinkedList<E>
      * @param o element to be removed from this list, if present
      * @return {@code true} if this list contained the specified element
      */
+    // 移除一个元素是O(n)，因为首先需要找到这个元素位于那个节点
     public boolean remove(Object o) {
         if (o == null) {
             for (Node<E> x = first; x != null; x = x.next) {
@@ -472,6 +494,7 @@ public class LinkedList<E>
      * @return the element at the specified position in this list
      * @throws IndexOutOfBoundsException {@inheritDoc}
      */
+    // node是一个O(n)操作
     public E get(int index) {
         checkElementIndex(index);
         return node(index).item;
@@ -563,6 +586,9 @@ public class LinkedList<E>
     /**
      * Returns the (non-null) Node at the specified element index.
      */
+    // node是一个O(n)操作，从索引定位出链表节点
+    // 由于是双链表同时持有了头尾指针，因此这里有一个优化
+    // 判断这个索引是靠前还是靠后，从而决定从头遍历还是从尾遍历，这样最多只需要遍历N/2次
     Node<E> node(int index) {
         // assert isElementIndex(index);
 
@@ -592,6 +618,7 @@ public class LinkedList<E>
      * @return the index of the first occurrence of the specified element in
      *         this list, or -1 if this list does not contain the element
      */
+    // 没什么好看的，遍历
     public int indexOf(Object o) {
         int index = 0;
         if (o == null) {
