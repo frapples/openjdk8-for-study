@@ -130,6 +130,7 @@ public class Vector<E>
      * @throws IllegalArgumentException if the specified initial capacity
      *         is negative
      */
+    // capacityIncrement指定了扩容步长
     public Vector(int initialCapacity, int capacityIncrement) {
         super();
         if (initialCapacity < 0)
@@ -260,6 +261,7 @@ public class Vector<E>
     private void grow(int minCapacity) {
         // overflow-conscious code
         int oldCapacity = elementData.length;
+        // 可以看到，如果指定了capacityIncrement步长就按照这个步长扩容，否则两倍扩容
         int newCapacity = oldCapacity + ((capacityIncrement > 0) ?
                                          capacityIncrement : oldCapacity);
         if (newCapacity - minCapacity < 0)

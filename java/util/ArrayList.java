@@ -124,6 +124,7 @@ public class ArrayList<E> extends AbstractList<E>
      * distinguish this from EMPTY_ELEMENTDATA to know how much to inflate when
      * first element is added.
      */
+    // 起一个标记的作用，用于“延迟分配”
     private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
 
     /**
@@ -132,6 +133,9 @@ public class ArrayList<E> extends AbstractList<E>
      * empty ArrayList with elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA
      * will be expanded to DEFAULT_CAPACITY when the first element is added.
      */
+
+    // 1. 存储数据的java原生数组
+    // 2. 没有设置访问级别，即为默认，也就是包内可见。这是为了对包内的辅助类如SubList这种暴露实现细节便于辅助类实现
     transient Object[] elementData; // non-private to simplify nested class access
 
     /**
@@ -148,6 +152,7 @@ public class ArrayList<E> extends AbstractList<E>
      * @throws IllegalArgumentException if the specified initial capacity
      *         is negative
      */
+    // initialCapacity指定内部原生数组的初始大小
     public ArrayList(int initialCapacity) {
         if (initialCapacity > 0) {
             this.elementData = new Object[initialCapacity];
@@ -162,6 +167,9 @@ public class ArrayList<E> extends AbstractList<E>
     /**
      * Constructs an empty list with an initial capacity of ten.
      */
+    // 1. 理论上，默认构造函数创建出来的应该是内部原生数组大小为10，以避免元素较小时频繁扩容造成性能损耗
+    // 2. 考虑到大量场合都会使用空的ArrayList，为了优化，实现时并不分配这个大小为10的空间，等到第一次插入元素时再分配，逻辑见grow函数
+    // 3. 这里的DEFAULTCAPACITY_EMPTY_ELEMENTDATA起一个标记作用
     public ArrayList() {
         this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
     }
@@ -191,6 +199,7 @@ public class ArrayList<E> extends AbstractList<E>
      * list's current size.  An application can use this operation to minimize
      * the storage of an <tt>ArrayList</tt> instance.
      */
+    // 很显然，也是通过重新分配一个原生数组的方式，缩小原生数组的空间
     public void trimToSize() {
         modCount++;
         if (size < elementData.length) {
@@ -220,6 +229,11 @@ public class ArrayList<E> extends AbstractList<E>
         }
     }
 
+    // 这个居然和公司电脑上的不太一样。。。呃。
+    // 下面三个函数一起的，ensureCapacityInternal该函数调用后，保证原生数组的大小不低于minCapacity
+    // 从calculateCapacity中，体现了前面说的“延迟分配”的效果了，如果elementData为DEFAULTCAPACITY_EMPTY_ELEMENTDATA即之前的状态标记
+    // 那么最小按照不低于DEFAULT_CAPACITY的大小分配
+
     private static int calculateCapacity(Object[] elementData, int minCapacity) {
         if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
             return Math.max(DEFAULT_CAPACITY, minCapacity);
@@ -235,7 +249,7 @@ public class ArrayList<E> extends AbstractList<E>
         modCount++;
 
         // overflow-conscious code
-        if (minCapacity - elementData.length > 0)
+        if (minCapacity - elementData.length > 0) // 只有现有的大小比所需的小才扩容，grow为实现扩容的函数
             grow(minCapacity);
     }
 
@@ -253,14 +267,15 @@ public class ArrayList<E> extends AbstractList<E>
      *
      * @param minCapacity the desired minimum capacity
      */
+    // 实现扩容的函数
     private void grow(int minCapacity) {
         // overflow-conscious code
         int oldCapacity = elementData.length;
-        int newCapacity = oldCapacity + (oldCapacity >> 1);
-        if (newCapacity - minCapacity < 0)
+        int newCapacity = oldCapacity + (oldCapacity >> 1); // 如果扩容1.5倍足够，就扩容1.5倍
+        if (newCapacity - minCapacity < 0)  // 如果扩容1.5倍大小还不够，就需要多少扩容多少
             newCapacity = minCapacity;
         if (newCapacity - MAX_ARRAY_SIZE > 0)
-            newCapacity = hugeCapacity(minCapacity);
+            newCapacity = hugeCapacity(minCapacity); // 如果太大了，也要做一下限制，防止超过了int型能表示的最大值
         // minCapacity is usually close to size, so this is a win:
         elementData = Arrays.copyOf(elementData, newCapacity);
     }
@@ -312,6 +327,7 @@ public class ArrayList<E> extends AbstractList<E>
      * or -1 if there is no such index.
      */
     public int indexOf(Object o) {
+        // 没什么复杂的，这里对null的情况分别作了处理
         if (o == null) {
             for (int i = 0; i < size; i++)
                 if (elementData[i]==null)
@@ -430,6 +446,7 @@ public class ArrayList<E> extends AbstractList<E>
      * @throws IndexOutOfBoundsException {@inheritDoc}
      */
     public E get(int index) {
+        // 做了越界检查
         rangeCheck(index);
 
         return elementData(index);
@@ -459,6 +476,7 @@ public class ArrayList<E> extends AbstractList<E>
      * @return <tt>true</tt> (as specified by {@link Collection#add})
      */
     public boolean add(E e) {
+        // 添加之前先确保空间足够，空间不够时扩容
         ensureCapacityInternal(size + 1);  // Increments modCount!!
         elementData[size++] = e;
         return true;
@@ -493,15 +511,19 @@ public class ArrayList<E> extends AbstractList<E>
      * @throws IndexOutOfBoundsException {@inheritDoc}
      */
     public E remove(int index) {
+        // 做越界检查
         rangeCheck(index);
 
         modCount++;
+        // 把要删除的元素取出来，后面的挪一个
         E oldValue = elementData(index);
 
         int numMoved = size - index - 1;
         if (numMoved > 0)
             System.arraycopy(elementData, index+1, elementData, index,
                              numMoved);
+        // 挪完后，size - 1和size - 2都持有最后一个元素的引用，要把size - 1位置的元素释放掉
+        // 否则可能会造成无意义的内存占用
         elementData[--size] = null; // clear to let GC do its work
 
         return oldValue;
@@ -521,6 +543,7 @@ public class ArrayList<E> extends AbstractList<E>
      * @return <tt>true</tt> if this list contained the specified element
      */
     public boolean remove(Object o) {
+        // 先找对象的索引，然后移除
         if (o == null) {
             for (int index = 0; index < size; index++)
                 if (elementData[index] == null) {
@@ -689,6 +712,7 @@ public class ArrayList<E> extends AbstractList<E>
      *         or if the specified collection is null
      * @see Collection#contains(Object)
      */
+    // 移除所有c里出现的元素
     public boolean removeAll(Collection<?> c) {
         Objects.requireNonNull(c);
         return batchRemove(c, false);
@@ -710,6 +734,7 @@ public class ArrayList<E> extends AbstractList<E>
      *         or if the specified collection is null
      * @see Collection#contains(Object)
      */
+    // 移除所有c里不出现的元素，逻辑和removeALl几乎一样，抽象出函数batchRemove实现
     public boolean retainAll(Collection<?> c) {
         Objects.requireNonNull(c);
         return batchRemove(c, true);
@@ -720,12 +745,16 @@ public class ArrayList<E> extends AbstractList<E>
         int r = 0, w = 0;
         boolean modified = false;
         try {
+            // 下面的算法实际上是可以简化成一个通用算法问题：
+            // 有两个数组data和isRemove，isRemove[i]为true表示data[i]应该被移除。
+            // 要求在O(n)时间复杂度，O(1)空间复杂度，将data中isRemove[i]为true的元素移除。
             for (; r < size; r++)
                 if (c.contains(elementData[r]) == complement)
                     elementData[w++] = elementData[r];
         } finally {
             // Preserve behavioral compatibility with AbstractCollection,
             // even if c.contains() throws.
+            // 抛异常后要擦屁股，相当于只去掉了抛异常前检查的那些元素，后面的原封不动接回去
             if (r != size) {
                 System.arraycopy(elementData, r,
                                  elementData, w,
@@ -1216,6 +1245,7 @@ public class ArrayList<E> extends AbstractList<E>
         }
 
         public List<E> subList(int fromIndex, int toIndex) {
+            // SubList表示该List的中间一段，类似一个视图，它本身不存储数据，所有对SubList的操作最终都落实到List上来
             subListRangeCheck(fromIndex, toIndex, size);
             return new SubList(this, offset, fromIndex, toIndex);
         }
@@ -1459,6 +1489,7 @@ public class ArrayList<E> extends AbstractList<E>
     @SuppressWarnings("unchecked")
     public void sort(Comparator<? super E> c) {
         final int expectedModCount = modCount;
+        // 具体的sort算法和Arrays.sort有关
         Arrays.sort((E[]) elementData, 0, size, c);
         if (modCount != expectedModCount) {
             throw new ConcurrentModificationException();
