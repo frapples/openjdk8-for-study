@@ -588,6 +588,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         if ((tab = table) != null && (n = tab.length) > 0 &&
             // (n - 1) & hash 显然是在hash桶数组里定位存在的hash桶.
             // 问题2：为什么不用通常的取余？先不管，应该是某种优化，感觉和那个HashMap.hash有关系
+            // 问题2答案：通过阅读扩容和初始化有关代码不难发现，hash桶数组的大小始终是2的幂次方。对2的幂次方取余，可用位运算实现。
             (first = tab[(n - 1) & hash]) != null) {
             if (first.hash == hash && // always check first node
                 ((k = first.key) == key || (key != null && key.equals(k))))
@@ -762,7 +763,10 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                         Node<K,V> next;
                         do { // 遍历链表，暴力做法是把链条拆下来一个个的插入到新表中，但是这里估计又是某种优化，猜测和前面的hash值有关，这里有些复杂
                             next = e.next;
-                            if ((e.hash & oldCap) == 0) { //  这是什么判断？推测和优化有关，它把链表分成两种类型的
+                            if ((e.hash & oldCap) == 0) { //  这是什么判断？推测和优化有关，它把链表节点分成两种类型的
+                                // 解决：如果注意到hash桶数组扩容是从2^N 到 2^(N +１) 这一事实，从二进制的角度分析取余运算，就不难发现优化思路。
+                                // 具体分析过程太复杂了，这里略。
+                                // 总之，这个迭代的代码是把这条链表拆分成两条，然而不同的处理逻辑。
                                 if (loTail == null)
                                     loHead = e;
                                 else
@@ -778,6 +782,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                             }
                         } while ((e = next) != null);
                         // 不知道是什么操作，应该是优化，对于这两种不同类型的链表，移动的方式不一样
+                        // 解决：见上。
                         if (loTail != null) {
                             loTail.next = null;
                             newTab[j] = loHead;
@@ -2194,6 +2199,8 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          * @param index the index of the table being split
          * @param bit the bit of hash to split on
          */
+        // 10. split()是给resize函数调用的。之前知道链表在rehash时需要拆分成两条。
+        // 那么同样，二叉树也是这样。
         final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
             TreeNode<K,V> b = this;
             // Relink into lo and hi lists, preserving order
@@ -2223,6 +2230,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 
             if (loHead != null) {
                 if (lc <= UNTREEIFY_THRESHOLD)
+                    // 只是这里面有一个逻辑，即如果拆分出的树太小，就重新转换回链表
                     tab[index] = loHead.untreeify(map);
                 else {
                     tab[index] = loHead;
