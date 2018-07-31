@@ -160,10 +160,16 @@ import java.io.IOException;
  * @see     Hashtable
  * @since   1.4
  */
+// LinkedHashMap继承自HashMap，说明它是在HashMap的基础上座扩展
 public class LinkedHashMap<K,V>
     extends HashMap<K,V>
     implements Map<K,V>
 {
+    // 总结, LinkedHashMap的实现主要有三点：
+    // 1. 扩展HashMap实现。
+    // 2. 扩展HashMap的节点（包括Node和TreeNode），加入两个域组织额外的双向链表保存顺序
+    // 3. 在产生插入、删除、访问的地方维护双向链表，通过重写某些方法实现
+    // 4. 实现迭代器相关逻辑，因为迭代器是根据双向链表顺序迭代的
 
     /*
      * Implementation note.  A previous version of this class was
@@ -189,6 +195,7 @@ public class LinkedHashMap<K,V>
     /**
      * HashMap.Node subclass for normal LinkedHashMap entries.
      */
+    // 扩展HashMap的节点，加入before和after域将节点串接成双向链表
     static class Entry<K,V> extends HashMap.Node<K,V> {
         Entry<K,V> before, after;
         Entry(int hash, K key, V value, Node<K,V> next) {
@@ -201,6 +208,8 @@ public class LinkedHashMap<K,V>
     /**
      * The head (eldest) of the doubly linked list.
      */
+    // 记录该双向链表的首尾
+    // 从注释中可以看出，head节点是最老的，tail节点是最新的，也即链表按照由老到新的顺序串起来
     transient LinkedHashMap.Entry<K,V> head;
 
     /**
@@ -214,11 +223,13 @@ public class LinkedHashMap<K,V>
      *
      * @serial
      */
+    // 指定顺序是按照访问顺序来，还是插入顺序来
     final boolean accessOrder;
 
     // internal utilities
 
     // link at the end of list
+    // 尾插双向链表节点
     private void linkNodeLast(LinkedHashMap.Entry<K,V> p) {
         LinkedHashMap.Entry<K,V> last = tail;
         tail = p;
@@ -246,12 +257,15 @@ public class LinkedHashMap<K,V>
     }
 
     // overrides of HashMap hook methods
+    // 这里重写了部分HashMap的方法，以实现LinkedHashMap的逻辑
 
     void reinitialize() {
         super.reinitialize();
         head = tail = null;
     }
 
+    // HashMap中插入元素时，新节点的创建通过newNode来完成。
+    // 由于这里扩展了Node，所以需要重写创建节点的逻辑，使其保存扩展后的节点对象
     Node<K,V> newNode(int hash, K key, V value, Node<K,V> e) {
         LinkedHashMap.Entry<K,V> p =
             new LinkedHashMap.Entry<K,V>(hash, key, value, e);
@@ -267,6 +281,7 @@ public class LinkedHashMap<K,V>
         return t;
     }
 
+    // HashMap的TreeNode是继承自LinkedHashMap.Entry的，因此能够参与组织双向链表
     TreeNode<K,V> newTreeNode(int hash, K key, V value, Node<K,V> next) {
         TreeNode<K,V> p = new TreeNode<K,V>(hash, key, value, next);
         linkNodeLast(p);
@@ -280,6 +295,10 @@ public class LinkedHashMap<K,V>
         return t;
     }
 
+    // 记得HashMap中预留了三个钩子，分别在节点移除、插入、访问后执行
+    // 在这里就用上了，维护保存顺序的双向链表的逻辑在此实现
+
+    // 当有节点被删除（即有元素被移除），那么也要将它从双向链表中移除
     void afterNodeRemoval(Node<K,V> e) { // unlink
         LinkedHashMap.Entry<K,V> p =
             (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
@@ -294,6 +313,8 @@ public class LinkedHashMap<K,V>
             a.before = b;
     }
 
+    // 这个hook里做了啥？没看懂。removeEldestEntry固定返回false，这个函数根本没有行为
+    // 新插入元素时，双向链表的维护逻辑在重写的newNode和newTreeNode方法里实现
     void afterNodeInsertion(boolean evict) { // possibly remove eldest
         LinkedHashMap.Entry<K,V> first;
         if (evict && (first = head) != null && removeEldestEntry(first)) {
@@ -302,6 +323,9 @@ public class LinkedHashMap<K,V>
         }
     }
 
+    // 当有元素被访问时，如果accessOrder为true（即按照访问顺序排列hash表顺序），这里需要维护双向链表逻辑
+    // 首先，维护双向链表，将被访问节点移动至最后面
+    // 其次，迭代器是根据双向链表顺序迭代，如果双向链表有变动迭代器应该直接失败，所以这里modCount需要加一
     void afterNodeAccess(Node<K,V> e) { // move node to last
         LinkedHashMap.Entry<K,V> last;
         if (accessOrder && (last = tail) != e) {
@@ -435,6 +459,8 @@ public class LinkedHashMap<K,V>
      * The {@link #containsKey containsKey} operation may be used to
      * distinguish these two cases.
      */
+    // 重写get相关方法，与HashMap后进行对比会发现，仅仅是对accessOrder进行判断
+    // 这里似乎有点冗余，accessOrder的逻辑已经在afterNodeAccess中进行处理了
     public V get(Object key) {
         Node<K,V> e;
         if ((e = getNode(hash(key), key)) == null)
@@ -459,6 +485,7 @@ public class LinkedHashMap<K,V>
     /**
      * {@inheritDoc}
      */
+    // clear时维护下双向链表
     public void clear() {
         super.clear();
         head = tail = null;
