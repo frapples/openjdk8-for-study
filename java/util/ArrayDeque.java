@@ -96,6 +96,8 @@ public class ArrayDeque<E> extends AbstractCollection<E>
      * other.  We also guarantee that all array cells not holding
      * deque elements are always null.
      */
+    // ArrayDeque 从名字也能看出，是用数组实现的双端队列。
+    // 那么，elements域就是存储数据的原生数组
     transient Object[] elements; // non-private to simplify nested class access
 
     /**
@@ -103,6 +105,7 @@ public class ArrayDeque<E> extends AbstractCollection<E>
      * element that would be removed by remove() or pop()); or an
      * arbitrary number equal to tail if the deque is empty.
      */
+    // head和tail分别指示队列的队头和队尾
     transient int head;
 
     /**
@@ -151,12 +154,14 @@ public class ArrayDeque<E> extends AbstractCollection<E>
      * Doubles the capacity of this deque.  Call only when full, i.e.,
      * when head and tail have wrapped around to become equal.
      */
+    // 扩容的逻辑为双倍扩容。如果扩的太大超过的int型的范围，则报错
     private void doubleCapacity() {
         assert head == tail;
         int p = head;
         int n = elements.length;
         int r = n - p; // number of elements to the right of p
         int newCapacity = n << 1;
+        // 扩容后的大小小于0（溢出），也即队列最大应该是2的30次方
         if (newCapacity < 0)
             throw new IllegalStateException("Sorry, deque too big");
         Object[] a = new Object[newCapacity];
@@ -189,6 +194,7 @@ public class ArrayDeque<E> extends AbstractCollection<E>
      * Constructs an empty array deque with an initial capacity
      * sufficient to hold 16 elements.
      */
+    // 默认内部数组的大小为16
     public ArrayDeque() {
         elements = new Object[16];
     }
@@ -199,6 +205,7 @@ public class ArrayDeque<E> extends AbstractCollection<E>
      *
      * @param numElements  lower bound on initial capacity of the deque
      */
+    // 也可以自定义内部大小，会按照2的整数幂取整
     public ArrayDeque(int numElements) {
         allocateElements(numElements);
     }
@@ -228,6 +235,8 @@ public class ArrayDeque<E> extends AbstractCollection<E>
      * @param e the element to add
      * @throws NullPointerException if the specified element is null
      */
+    // 从这里可以看出，除队空这种情况外，head指向的是队头第一个元素。
+    // 内部的数组虽然物理上是一个长条状的结构，但是在Deque的实现中，将其回绕看成环形的结构。tail和head就在环上转圈。
     public void addFirst(E e) {
         if (e == null)
             throw new NullPointerException();
@@ -244,6 +253,10 @@ public class ArrayDeque<E> extends AbstractCollection<E>
      * @param e the element to add
      * @throws NullPointerException if the specified element is null
      */
+    // 从这里可以看出，tail指向的是队尾后一个空位置。
+    // 如果队列没有满，tail指向的是空位置，head指向的是队头元素，永远不可能一样。
+    // 但是当队列满时，tail回绕会追上head，当tail等于head时，表示队列满了。
+    // 每次插入都需要判断队列是否满，满则扩容
     public void addLast(E e) {
         if (e == null)
             throw new NullPointerException();
@@ -296,6 +309,7 @@ public class ArrayDeque<E> extends AbstractCollection<E>
         return x;
     }
 
+    // 移除队头元素，很显然
     public E pollFirst() {
         int h = head;
         @SuppressWarnings("unchecked")
@@ -308,6 +322,7 @@ public class ArrayDeque<E> extends AbstractCollection<E>
         return result;
     }
 
+    // 移除队尾元素，也很显然
     public E pollLast() {
         int t = (tail - 1) & (elements.length - 1);
         @SuppressWarnings("unchecked")
@@ -615,6 +630,9 @@ public class ArrayDeque<E> extends AbstractCollection<E>
         return new DescendingIterator();
     }
 
+    // 迭代器的实现。可以发现Deque中修改方法并没有修改modCount
+    // 从这里可以看出，它是从tail和head指针是否变化来判断Deque是否在迭代中被修改。
+    // 较真的说，这种机制判断还是有点问题，比如说另外一个线程一顿猛如虎的操作后，正好让这两个指针转了一圈。
     private class DeqIterator implements Iterator<E> {
         /**
          * Index of element to be returned by subsequent call to next.
