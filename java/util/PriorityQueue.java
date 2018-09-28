@@ -95,6 +95,8 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      * heap and each descendant d of n, n <= d.  The element with the
      * lowest value is in queue[0], assuming the queue is nonempty.
      */
+    // 优先队列逻辑上是一颗完全二叉树。由于完全二叉树的特点，内部使用数组即可存储
+    // 不难发现，queue[n]节点的儿子是queue[2 * n + 1]和queue[2 * n + 2]
     transient Object[] queue; // non-private to simplify nested class access
 
     /**
@@ -120,6 +122,7 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      * {@linkplain Comparable natural ordering}.
      */
     public PriorityQueue() {
+        // 默认构造函数，内部数组的大小默认为11
         this(DEFAULT_INITIAL_CAPACITY, null);
     }
 
@@ -160,6 +163,9 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      * @throws IllegalArgumentException if {@code initialCapacity} is
      *         less than 1
      */
+    // 可以显示指定Comparator。
+    // 由于优先队列是基于比较的，所以放入其中的元素必须能比较。
+    // java对象要想支持比较，要么实现Comparable接口，要么使用Comparator比较。
     public PriorityQueue(int initialCapacity,
                          Comparator<? super E> comparator) {
         // Note: This restriction of at least one is not actually needed,
@@ -289,6 +295,10 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      *
      * @param minCapacity the desired minimum capacity
      */
+    // 同样的思路，如果不够，就要扩容
+    // 扩容策略是，如果原来的小于64，就扩容一倍再加2（不知道为什么这么奇怪的计算）
+    // 如果原来的大于64，扩容50%
+    // 注意处理溢出的情况
     private void grow(int minCapacity) {
         int oldCapacity = queue.length;
         // Double size if small; else grow by 50%
@@ -331,14 +341,20 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      *         according to the priority queue's ordering
      * @throws NullPointerException if the specified element is null
      */
+    // 添加元素到二叉堆
     public boolean offer(E e) {
+        // 可以看到，二叉堆不能存储null
         if (e == null)
             throw new NullPointerException();
         modCount++;
         int i = size;
+        // queue数组插入元素后有可能不够大，肿么办？扩容
         if (i >= queue.length)
             grow(i + 1);
         size = i + 1;
+        // 将数据插入二叉堆
+        // 第一步，将数据放到末尾。反应到完全二叉树上，如果最后一层没满，则是最后一个节点右边，否则，则是新加一层的最左边
+        // 第二步，“上滤”操作维护二叉堆性质，由siftUp函数完成
         if (i == 0)
             queue[0] = e;
         else
@@ -610,13 +626,18 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      * avoid missing traversing elements.
      */
     @SuppressWarnings("unchecked")
+    // 移除二叉堆节点
     private E removeAt(int i) {
         // assert i >= 0 && i < size;
         modCount++;
         int s = --size;
         if (s == i) // removed last element
+            // 如果是二叉堆最后一个节点，好办
             queue[i] = null;
         else {
+            // 如果不是，则用最后一个节点代替被删除节点，然后维护二叉堆性质
+            // 这个节点，即可能比父亲小，也可能比儿子大
+            // 因此， “下滤”操作和“上滤”操作都需要进行
             E moved = (E) queue[s];
             queue[s] = null;
             siftDown(i, moved);
@@ -641,6 +662,7 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      * @param k the position to fill
      * @param x the item to insert
      */
+    // 前面提过，java中元素的比较有两种方式：Comparable和Comparator，这里针对两种不同的比较方式实现上滤操作
     private void siftUp(int k, E x) {
         if (comparator != null)
             siftUpUsingComparator(k, x);
@@ -649,6 +671,9 @@ public class PriorityQueue<E> extends AbstractQueue<E>
     }
 
     @SuppressWarnings("unchecked")
+    // "上滤“操作的实现思路是，
+    // 假设用元素x放入了节点k，如果x比父节点小（不满足二叉堆的性质），就和父节点交换。如此往上交换下去
+    // 实际上实现细节不用真的每次交换也能完成算法，减少交换次数
     private void siftUpComparable(int k, E x) {
         Comparable<? super E> key = (Comparable<? super E>) x;
         while (k > 0) {
@@ -690,6 +715,7 @@ public class PriorityQueue<E> extends AbstractQueue<E>
             siftDownComparable(k, x);
     }
 
+    // "下滤"操作的实现与"上滤”类似，只是是往子节点的方式比较和交换
     @SuppressWarnings("unchecked")
     private void siftDownComparable(int k, E x) {
         Comparable<? super E> key = (Comparable<? super E>)x;
@@ -732,6 +758,15 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      * assuming nothing about the order of the elements prior to the call.
      */
     @SuppressWarnings("unchecked")
+    // 堆化，即从一组无规律的元素创建二叉堆
+    // 1. 思路是，从后往前，对每一个元素执行下滤操作
+    // 由于叶子节点根本没有下滤的必要，所以循环可以从最后一个有叶子节点的节点开始
+    // 最后一个有叶子节点的节点是哪个节点？当然是最后一个节点的父节点了。即size / 2 - 1
+    //
+    // 2. 时间复杂度是多少？
+    //   (1). 纵观整个堆化过程，可得出结论：比较次数，一定小于该二叉树的所有节点的高度之和。
+    //   (2). 接下来，通过计算拥有n个节点的满二叉树的所有节点的高度和公式，即可得出时间复杂度
+    //   (3). 计算过程见书本和相关资料，涉及到数列求和，总之结论是：O(n)
     private void heapify() {
         for (int i = (size >>> 1) - 1; i >= 0; i--)
             siftDown(i, (E) queue[i]);
